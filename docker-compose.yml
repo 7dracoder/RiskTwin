@@ -1,0 +1,26 @@
+# Local MongoDB Community replica set for the DGX / runtime-host profile.
+# Change Streams require a replica set; a standalone mongod is not enough.
+#
+# Usage on the runtime host:
+#   docker compose up -d
+#   python scripts/bootstrap_mongo.py
+#
+# The MacBook build-console profile does not use this file.
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: risktwin-mongo
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - risktwin-mongo:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.hello().ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  risktwin-mongo:

@@ -1,0 +1,184 @@
+{
+  "_id": "lift-042-trace",
+  "recordingId": "lift-042-trace",
+  "caseId": "LIFT-042",
+  "source": "recorded-replay",
+  "provenance": "Authored by the team from the RiskTwin build specification section 4.2 staged anomaly sequence. This is a recorded/simulated site telemetry trace. No physical sensor was present and no value here was measured on a real site.",
+  "license": "Team-authored, unrestricted use by this team.",
+  "isSimulated": true,
+  "durationSeconds": 58,
+  "events": [
+    {
+      "offsetSeconds": 0,
+      "eventType": "telemetry",
+      "kind": "wind_gust_kmh",
+      "value": 24,
+      "unit": "km/h",
+      "sourceId": "site-weather-042",
+      "label": "Baseline wind gust 24 km/h"
+    },
+    {
+      "offsetSeconds": 0,
+      "eventType": "telemetry",
+      "kind": "crane_load_pct",
+      "value": 62,
+      "unit": "%",
+      "sourceId": "crane-gateway-042",
+      "label": "Baseline load utilisation 62%"
+    },
+    {
+      "offsetSeconds": 0,
+      "eventType": "telemetry",
+      "kind": "hydraulic_temp_c",
+      "value": 46,
+      "unit": "C",
+      "sourceId": "crane-gateway-042",
+      "label": "Hydraulic temperature 46 C"
+    },
+    {
+      "offsetSeconds": 0,
+      "eventType": "site_state",
+      "kind": "zone_state",
+      "value": "clear",
+      "sourceId": "floor-gateway-f12",
+      "label": "Zone C reported clear",
+      "payload": { "zoneId": "C" }
+    },
+    {
+      "offsetSeconds": 0,
+      "eventType": "site_state",
+      "kind": "lift_state",
+      "value": "planned",
+      "sourceId": "crane-gateway-042",
+      "label": "Lift planned, not yet active"
+    },
+    {
+      "offsetSeconds": 0,
+      "eventType": "gateway_heartbeat",
+      "kind": "gateway_heartbeat",
+      "value": "ok",
+      "sourceId": "floor-gateway-f12",
+      "label": "Floor 12 gateway heartbeat"
+    },
+    {
+      "offsetSeconds": 10,
+      "eventType": "site_state",
+      "kind": "lift_state",
+      "value": "active",
+      "sourceId": "crane-gateway-042",
+      "label": "Lift becomes active"
+    },
+    {
+      "offsetSeconds": 10,
+      "eventType": "telemetry",
+      "kind": "wind_gust_kmh",
+      "value": 29,
+      "unit": "km/h",
+      "sourceId": "site-weather-042",
+      "label": "Wind gust 29 km/h, still within the retrieved limit"
+    },
+    {
+      "offsetSeconds": 10,
+      "eventType": "telemetry",
+      "kind": "crane_load_pct",
+      "value": 71,
+      "unit": "%",
+      "sourceId": "crane-gateway-042",
+      "label": "Load utilisation 71%, still within the planned limit"
+    },
+    {
+      "offsetSeconds": 10,
+      "eventType": "gateway_heartbeat",
+      "kind": "gateway_heartbeat",
+      "value": "ok",
+      "sourceId": "floor-gateway-f12",
+      "label": "Floor 12 gateway heartbeat"
+    },
+    {
+      "offsetSeconds": 18,
+      "eventType": "vision_cue",
+      "kind": "walkthrough_available",
+      "value": "zone-c-boundary",
+      "sourceId": "site-camera-zone-c",
+      "label": "Walkthrough frames available for the Zone C boundary",
+      "payload": { "zoneId": "C", "reason": "layout change reported by the banksman" }
+    },
+    {
+      "offsetSeconds": 20,
+      "eventType": "gateway_heartbeat",
+      "kind": "gateway_heartbeat",
+      "value": "ok",
+      "sourceId": "floor-gateway-f12",
+      "label": "Floor 12 gateway heartbeat"
+    },
+    {
+      "offsetSeconds": 25,
+      "eventType": "audio_cue",
+      "kind": "crew_clip_available",
+      "value": "zone-c-status",
+      "sourceId": "crew-radio-042",
+      "label": "Crew radio clip available",
+      "payload": { "zoneId": "C" }
+    },
+    {
+      "offsetSeconds": 30,
+      "eventType": "gateway_heartbeat",
+      "kind": "gateway_heartbeat",
+      "value": "ok",
+      "sourceId": "floor-gateway-f12",
+      "label": "Floor 12 gateway heartbeat"
+    },
+    {
+      "offsetSeconds": 32,
+      "eventType": "worker_zone",
+      "kind": "worker_zone",
+      "value": "C",
+      "sourceId": "worker-pwa",
+      "label": "worker-12 enters Zone C",
+      "payload": { "workerAlias": "worker-12", "zoneId": "C", "floorId": "F12" }
+    },
+    {
+      "offsetSeconds": 40,
+      "eventType": "telemetry",
+      "kind": "wind_gust_kmh",
+      "value": 46,
+      "unit": "km/h",
+      "sourceId": "site-weather-042",
+      "label": "Wind gust jumps to 46 km/h"
+    },
+    {
+      "offsetSeconds": 40,
+      "eventType": "gateway_heartbeat",
+      "kind": "gateway_heartbeat",
+      "value": "ok",
+      "sourceId": "floor-gateway-f12",
+      "label": "Floor 12 gateway heartbeat"
+    },
+    {
+      "offsetSeconds": 48,
+      "eventType": "telemetry",
+      "kind": "crane_load_pct",
+      "value": 89,
+      "unit": "%",
+      "sourceId": "crane-gateway-042",
+      "label": "Load utilisation rises to 89%"
+    },
+    {
+      "offsetSeconds": 50,
+      "eventType": "gateway_heartbeat",
+      "kind": "gateway_heartbeat",
+      "value": "ok",
+      "sourceId": "floor-gateway-f12",
+      "label": "Floor 12 gateway heartbeat"
+    },
+    {
+      "offsetSeconds": 55,
+      "eventType": "source_freshness",
+      "kind": "source_unavailable",
+      "value": "stale",
+      "sourceId": "floor-gateway-f12",
+      "label": "Floor 12 gateway has no update for longer than its freshness SLA",
+      "payload": { "lastSeenOffsetSeconds": 50, "slaSeconds": 45, "reportedBy": "data-watcher" }
+    }
+  ]
+}

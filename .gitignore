@@ -1,0 +1,31 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+node_modules/
+.next/
+out/
+
+# Raw source media is restricted to the local processing workspace (spec 5.1).
+data/raw/video/*
+data/raw/audio/*
+!data/raw/**/.gitkeep
+!data/raw/**/README.md
+
+# Locally generated artifacts
+data/processed/frames/*
+data/processed/transcripts/*
+data/processed/redacted/*
+data/processed/import-report.json
+data/state/*
+!data/processed/frames/.gitkeep
+!data/processed/transcripts/.gitkeep
+!data/processed/redacted/.gitkeep
+!data/state/.gitkeep
+
+.DS_Store
+*.tsbuildinfo

@@ -1,0 +1,127 @@
+# RiskTwin approved source registry — spec sections 4.2 and 8.5
+#
+# The Data Watcher may only ingest from a source declared here. Every entry
+# produces a `source_manifest` record carrying provenance and a freshness verdict
+# of fresh / stale / unavailable. A stale critical source changes the case
+# decision to ESCALATE; it never silently degrades to an approval.
+
+version: 1
+
+sources:
+  # --- Class 1: site-owned operational data ---------------------------------
+  - sourceId: crane-gateway-042
+    sourceClass: site-owned
+    label: Crane 4 load and attitude gateway
+    owner: site-operations
+    license: site-owned operational data
+    critical: true
+    requiresContinuousFeed: true
+    freshnessSlaSeconds: 30
+    schemaVersion: 1
+    liveFetch: false
+    ingestMode: recorded-replay
+    failureRule: ESCALATE
+    emits: [crane_load_pct, hydraulic_temp_c, lift_state]
+
+  - sourceId: floor-gateway-f12
+    sourceClass: site-owned
+    label: Floor 12 zone-presence gateway
+    owner: site-operations
+    license: site-owned operational data
+    critical: true
+    requiresContinuousFeed: true
+    freshnessSlaSeconds: 45
+    schemaVersion: 1
+    liveFetch: false
+    ingestMode: recorded-replay
+    failureRule: ESCALATE
+    emits: [gateway_heartbeat, site_access_state]
+
+  - sourceId: site-camera-zone-c
+    sourceClass: site-owned
+    label: Fixed camera covering the Zone C lift area, plus walkthrough footage
+    owner: site-operations
+    license: team-recorded footage, see data/ATTRIBUTION.md
+    critical: true
+    requiresContinuousFeed: false
+    freshnessSlaSeconds: 60
+    schemaVersion: 1
+    liveFetch: false
+    ingestMode: local-media-analysis
+    failureRule: ESCALATE
+    emits: [video_observation]
+
+  - sourceId: crew-radio-042
+    sourceClass: site-owned
+    label: Crew radio channel for LIFT-042
+    owner: site-operations
+    license: team-recorded audio, see data/ATTRIBUTION.md
+    critical: false
+    requiresContinuousFeed: false
+    freshnessSlaSeconds: 300
+    schemaVersion: 1
+    liveFetch: false
+    ingestMode: local-media-analysis
+    failureRule: HOLD
+    emits: [audio_observation]
+
+  - sourceId: worker-pwa
+    sourceClass: site-owned
+    label: Worker PWA zone reporting (opted-in devices on the event LAN)
+    owner: site-safety
+    license: purpose-limited safety telemetry, worker alias only
+    critical: true
+    requiresContinuousFeed: false
+    freshnessSlaSeconds: 120
+    schemaVersion: 1
+    liveFetch: false
+    ingestMode: live-local-post
+    failureRule: ESCALATE
+    emits: [worker_zone]
+
+  # --- Class 2: external environmental data ---------------------------------
+  - sourceId: site-weather-042
+    sourceClass: external-environmental
+    label: Site anemometer / environmental observations
+    owner: imported during build window
+    license: see data/ATTRIBUTION.md
+    critical: true
+    requiresContinuousFeed: true
+    freshnessSlaSeconds: 120
+    schemaVersion: 1
+    # Live polling stays disabled unless an organizer confirms that a non-LLM
+    # public data source is permitted. Never make the demo depend on it.
+    liveFetch: false
+    allowedHostname: null
+    ingestMode: recorded-replay
+    failureRule: ESCALATE
+    emits: [wind_gust_kmh, temperature_c]
+
+  # --- Class 3: business / regulatory knowledge -----------------------------
+  - sourceId: lift-plan-042
+    sourceClass: business-regulatory
+    label: Approved lift plan for LIFT-042
+    owner: project-engineering
+    license: team-authored, see data/ATTRIBUTION.md
+    critical: true
+    requiresContinuousFeed: false
+    freshnessSlaSeconds: 86400
+    schemaVersion: 1
+    liveFetch: false
+    ingestMode: document-import
+    failureRule: ESCALATE
+    emits: [policy_evidence]
+
+  - sourceId: safety-sop-crane
+    sourceClass: business-regulatory
+    label: Crane operations safety SOP
+    owner: site-safety
+    license: team-authored, see data/ATTRIBUTION.md
+    critical: false
+    requiresContinuousFeed: false
+    freshnessSlaSeconds: 86400
+    schemaVersion: 1
+    liveFetch: false
+    ingestMode: document-import
+    failureRule: HOLD
+    emits: [policy_evidence]

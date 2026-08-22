@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink text-slate-200 antialiased;
+}
+
+.panel {
+  @apply rounded-lg border border-edge bg-panel;
+}
+
+.panel-title {
+  @apply border-b border-edge px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400;
+}
+
+.chip {
+  @apply rounded border border-edge bg-black/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-400;
+}
+
+.btn {
+  @apply rounded border border-edge bg-black/40 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-slate-500 hover:bg-black/60 disabled:cursor-not-allowed disabled:opacity-40;
+}
+
+/* Thin scrollbars keep the dense panels readable on a projector. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded bg-edge;
+}

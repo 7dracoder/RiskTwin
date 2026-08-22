@@ -1,0 +1,104 @@
+# RiskTwin OpenShell policy — spec section 8.2
+#
+# This file is the single source of truth for what the agent sandbox may do.
+# `packages/runtime/openshell.py` evaluates every proposed action against it and
+# writes the verdict to the `policy_log` collection, so the dashboard action panel
+# and the judge-facing policy view read the same decisions.
+
+version: 1
+policyId: risktwin-site-sentinel-v1
+description: >
+  Confines the RiskTwin agent sandbox to the local case workspace, local service
+  endpoints and local media tooling. Denies public egress, raw-media export and
+  any equipment actuation. Requires a named human approver before a lift
+  clearance can be issued.
+
+filesystem:
+  allow_read:
+    - data/raw
+    - data/processed
+    - data/recordings
+    - data/site-models
+    - data/state
+    - config
+    - docs
+  allow_write:
+    - data/processed
+    - data/state
+  # Raw source media is readable by the local processing workspace only and is
+  # never exportable through the dashboard (spec 5.1).
+  no_export:
+    - data/raw/video
+    - data/raw/audio
+
+network:
+  # Deny by default. Loopback and private-LAN ranges only, so the worker PWA can
+  # reach the Worker API over the event Wi-Fi while models and MongoDB stay local.
+  default: deny
+  allow_cidrs:
+    - 127.0.0.0/8
+    - ::1/128
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+    - 169.254.0.0/16
+  allow_hostnames:
+    - localhost
+  # Populated ONLY if an organizer explicitly approves one documented public
+  # data source. The Data Watcher is the sole component allowed to use it, and it
+  # has no model access. Empty means the hackathon runtime is fully local.
+  data_watcher_allow_hostnames: []
+
+actions:
+  - type: draft_alert
+    effect: allow
+    reason: Drafting a risk narrative is not a safety-critical actuation.
+
+  - type: send_worker_alert
+    effect: allow
+    reason: >
+      A pre-approved local risk alert to an opted-in on-site worker device is
+      permitted, must stay on the private LAN, and must be recorded with its
+      acknowledgement state in MongoDB.
+    constraints:
+      allowed_tiers: [INFO, CAUTION, STOP_ACK_REQUIRED, ESCALATE]
+      must_record_in: notifications
+      transport: local-network-only
+
+  - type: export_redacted_evidence
+    effect: allow
+    reason: Only the blurred/labelled evidence render may leave the processing workspace.
+    constraints:
+      allowed_paths: [data/processed/redacted]
+
+  - type: issue_lift_clearance
+    effect: require_approval
+    reason: >
+      A lift clearance is a safety-critical permit. It requires a named human
+      approver and is refused outright while the case decision is HOLD or ESCALATE.
+    constraints:
+      require_named_approver: true
+      blocked_when_decision_in: [HOLD, ESCALATE]
+      require_evidence_types: [policy_evidence]
+
+  - type: equipment_command
+    effect: deny
+    reason: RiskTwin never commands a crane, hoist or any site machinery.
+
+  - type: export_raw_video
+    effect: deny
+    reason: Raw source video may contain identifiable people, plates and site layout.
+
+  - type: export_worker_location
+    effect: deny
+    reason: >
+      Worker position data is purpose-limited to active safety operations and is
+      not exportable off the site host.
+
+  - type: export_documents_external
+    effect: deny
+    reason: Lift plans and SOPs are customer documents and stay on the site host.
+
+  - type: outbound_public_request
+    effect: deny
+    reason: No component in the agent runtime path may reach the public internet.

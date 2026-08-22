@@ -1,0 +1,9 @@
+{
+  "documentId": "lift-plan-042",
+  "sourceId": "lift-plan-042",
+  "title": "Critical Lift Plan — LIFT-042 (rev 3)",
+  "provenance": "Team-authored for this build. Project-specific limits transcribed from the RiskTwin build specification section 4.2 demo trace definition.",
+  "license": "Team-authored, unrestricted use by this team.",
+  "isSyntheticDocument": true,
+  "replaceWith": "Drop the real cleared lift-plan PDF in this folder with a matching .meta.json to override."
+}

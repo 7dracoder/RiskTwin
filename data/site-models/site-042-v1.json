@@ -1,0 +1,56 @@
+{
+  "_id": "site-042:v1",
+  "siteModelId": "site-042",
+  "version": 1,
+  "active": true,
+  "coordinateFrame": {
+    "name": "local-site-grid",
+    "units": "meters",
+    "origin": "south-west ground corner"
+  },
+  "asset": {
+    "localPath": null,
+    "sha256": null
+  },
+  "floors": [
+    { "floorId": "F12", "elevationMeters": 36 },
+    { "floorId": "F13", "elevationMeters": 39 }
+  ],
+  "zones": [
+    {
+      "zoneId": "A",
+      "floorId": "F12",
+      "polygon": [[0, 0], [8, 0], [8, 5], [0, 5]],
+      "kind": "safe-route",
+      "label": "East corridor / safe walking route",
+      "approachBufferMeters": 2.0
+    },
+    {
+      "zoneId": "B",
+      "floorId": "F12",
+      "polygon": [[0, 5], [8, 5], [8, 12], [0, 12]],
+      "kind": "staging",
+      "label": "Material staging",
+      "approachBufferMeters": 2.0
+    },
+    {
+      "zoneId": "C",
+      "floorId": "F12",
+      "polygon": [[8, 0], [14, 0], [14, 6], [8, 6]],
+      "kind": "lift-exclusion",
+      "label": "Crane 4 lift exclusion zone",
+      "approachBufferMeters": 2.5
+    },
+    {
+      "zoneId": "D",
+      "floorId": "F12",
+      "polygon": [[8, 6], [14, 6], [14, 12], [8, 12]],
+      "kind": "access",
+      "label": "North access / hoist landing",
+      "approachBufferMeters": 2.0
+    }
+  ],
+  "hazards": [],
+  "derivedFrom": "annotated site plan; walkthrough frames map hazards onto these named zones",
+  "updatedAt": "2026-08-22T00:00:00Z"
+}

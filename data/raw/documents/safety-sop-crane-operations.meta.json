@@ -1,0 +1,9 @@
+{
+  "documentId": "safety-sop-crane",
+  "sourceId": "safety-sop-crane",
+  "title": "Safety SOP — Crane and Suspended Load Operations (SOP-CRN-014 rev 7)",
+  "provenance": "Team-authored for this build. Generic crane-safety controls written by the team; not a copy of any published standard.",
+  "license": "Team-authored, unrestricted use by this team.",
+  "isSyntheticDocument": true,
+  "replaceWith": "Drop the real cleared SOP PDF in this folder with a matching .meta.json to override."
+}
