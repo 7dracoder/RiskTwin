@@ -7,7 +7,7 @@
  * only a host and port are substituted, never a third-party domain.
  */
 
-const DEFAULT_API_PORT = "8000";
+export const DEFAULT_API_PORT = process.env.NEXT_PUBLIC_RISKTWIN_API_PORT ?? "8000";
 
 export function apiBase(): string {
   const configured = process.env.NEXT_PUBLIC_RISKTWIN_API;
@@ -42,6 +42,13 @@ export async function postJson<T>(path: string, body?: unknown): Promise<T> {
       payload,
     });
   }
+  return payload as T;
+}
+
+export async function postForm<T>(path: string, body: FormData): Promise<T> {
+  const response = await fetch(`${apiBase()}${path}`, { method: "POST", body });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error(`${path} -> ${response.status}`), { status: response.status, payload });
   return payload as T;
 }
 

@@ -83,6 +83,14 @@ export interface WorkerPositionView {
   floorId: string | null;
   x: number | null;
   y: number | null;
+  z: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  accuracyMeters: number | null;
+  headingDegrees: number | null;
+  speedMps: number | null;
+  locationSource: string;
+  isSimulated: boolean;
   relation: string | null;
   timestamp: string;
 }
@@ -161,6 +169,19 @@ export interface PolicyLogRow {
 export interface FrameRow {
   name: string;
   sizeBytes: number;
+  assetName: string;
+}
+
+export interface SensorReading {
+  _id: string;
+  caseId: string;
+  kind: string;
+  value: number | string | boolean;
+  unit: string | null;
+  timestamp: string;
+  source: string;
+  sourceId: string | null;
+  isSimulated: boolean;
 }
 
 export interface RedactionRow {
@@ -224,6 +245,29 @@ export interface ReplayStatus {
     eventCount: number;
     upcoming: { offsetSeconds: number; label: string; eventType: string; sourceId: string | null }[];
   } | null;
+}
+
+export interface ReconstructionStatus {
+  phase: "idle" | "extracting" | "features" | "matching" | "mapping" | "exporting" | "complete" | "failed" | "interrupted" | "unavailable";
+  progress: number;
+  message: string;
+  available: boolean;
+  engine: string;
+  videoName: string | null;
+  framesExtracted: number;
+  registeredImages: number;
+  pointCount: number;
+  durationMs: number | null;
+  outputReady: boolean;
+  running: boolean;
+  runId: string | null;
+}
+
+export interface PointCloud {
+  points: { x: number; y: number; z: number; r: number; g: number; b: number }[];
+  pointCount: number;
+  sampledCount: number;
+  runId: string | null;
 }
 
 export interface WorkerStatus {

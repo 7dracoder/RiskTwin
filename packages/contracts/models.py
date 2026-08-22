@@ -174,6 +174,13 @@ class WorkerPosition(RiskTwinModel):
     x: float | None = None
     y: float | None = None
     z: float | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    accuracyMeters: float | None = None
+    headingDegrees: float | None = None
+    speedMps: float | None = None
+    locationSource: str = "manual-zone"
+    isSimulated: bool = False
     siteModelVersion: int | None = None
     relation: WorkerZoneRelation = WorkerZoneRelation.COVERAGE_UNKNOWN
     timestamp: datetime = Field(default_factory=utcnow)
@@ -481,6 +488,13 @@ class WorkerPositionRequest(RiskTwinModel):
     x: float | None = None
     y: float | None = None
     z: float | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    accuracyMeters: float | None = None
+    headingDegrees: float | None = None
+    speedMps: float | None = None
+    locationSource: str = "manual-zone"
+    isSimulated: bool = False
     timestamp: datetime | None = None
 
 

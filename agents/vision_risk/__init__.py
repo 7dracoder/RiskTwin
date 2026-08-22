@@ -26,6 +26,16 @@ _RISK_SEVERITY = {
     "load_path_conflict": Severity.HIGH,
     "route_obstruction": Severity.MEDIUM,
     "housekeeping": Severity.LOW,
+    "ppe_noncompliance": Severity.HIGH,
+    "unsafe_edge_or_opening": Severity.HIGH,
+    "fire_or_smoke": Severity.HIGH,
+    "spill_or_leak": Severity.HIGH,
+    "vehicle_person_conflict": Severity.CRITICAL,
+    "electrical_hazard": Severity.HIGH,
+    "unstable_materials": Severity.HIGH,
+    "blocked_egress": Severity.HIGH,
+    "poor_visibility": Severity.MEDIUM,
+    "structural_damage": Severity.HIGH,
     "none": Severity.INFO,
 }
 
@@ -76,7 +86,10 @@ async def run(
         )
         return [record.id]
 
-    asset = videos[0]
+    requested_name = (cue or {}).get("assetName")
+    asset = next((video for video in videos if video.name == requested_name), None)
+    if asset is None:
+        asset = max(videos, key=lambda video: video.path.stat().st_mtime)
     meta = dict(asset.meta)
     if cue and cue.get("zoneId") and not meta.get("regions") and not meta.get("defaultZoneId"):
         # A cue names the zone under review; without a frame mapping the finding

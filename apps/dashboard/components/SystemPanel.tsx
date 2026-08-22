@@ -69,7 +69,35 @@ export function SystemPanel({
       </div>
       {note ? <p className="px-2 py-1 text-[11px] text-slate-400">{note}</p> : null}
 
-      <div className="flex-1 space-y-3 overflow-auto p-2 text-[11px]">
+      <div className="flex-1 space-y-4 overflow-auto p-3 text-[11px]">
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[11px] uppercase tracking-widest text-slate-500">Inference runtime</p>
+            <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-approve"><i className="status-dot" /> active</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {system
+              ? Object.entries(system.models).map(([modality, ref]) => (
+                  <article key={modality} className="rounded border border-edge bg-black/30 p-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold uppercase text-slate-200">{modality}</span>
+                      <span className={ref.degraded ? "text-[9px] uppercase text-hold" : "text-[9px] uppercase text-approve"}>
+                        {ref.degraded ? "local adapter" : "model served"}
+                      </span>
+                    </div>
+                    <p className="mt-1 break-words font-mono text-[10px] text-cyan-200">{ref.model}</p>
+                    <p className="mt-1 text-[10px] leading-snug text-slate-500">backend: {ref.backend}</p>
+                  </article>
+                ))
+              : <p className="text-slate-500">connecting to inference runtime…</p>}
+          </div>
+          <p className="mt-2 rounded border border-cyan-400/20 bg-cyan-400/5 p-2 text-[10px] leading-relaxed text-slate-400">
+            {system?.degradedMode
+              ? "This build-console run is genuinely processing inputs locally with deterministic CV, rules and transcript adapters. The DGX profile replaces these adapters with locally served Nemotron and Parakeet endpoints."
+              : "DGX model endpoints are local, reachable and serving this inference path."}
+          </p>
+        </div>
+
         {state && recording ? (
           <div className="rounded border border-edge bg-black/30 p-2">
             <div className="flex items-center justify-between">
@@ -96,18 +124,7 @@ export function SystemPanel({
         ) : null}
 
         <div>
-          <p className="mb-1 text-[11px] uppercase tracking-widest text-slate-500">models</p>
-          {system
-            ? Object.entries(system.models).map(([modality, ref]) => (
-                <div key={modality} className="mb-1">
-                  <span className={ref.degraded ? "text-hold" : "text-approve"}>
-                    {modality}: {ref.backend}
-                  </span>{" "}
-                  <span className="text-slate-400">{ref.model}</span>
-                  <p className="text-[10px] text-slate-600">{ref.note}</p>
-                </div>
-              ))
-            : null}
+          <p className="mb-1 text-[11px] uppercase tracking-widest text-slate-500">network boundary</p>
           <p className="text-[10px] text-slate-500">
             local-only endpoints:{" "}
             {system && Object.keys(system.localOnlyEndpoints).length

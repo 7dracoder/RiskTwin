@@ -1,6 +1,16 @@
 """Local API routes."""
 
-from apps.api.routes import actions, cases, events, media, replay, system, ws
+from apps.api.routes import (
+    actions,
+    cases,
+    events,
+    media,
+    reconstruction,
+    replay,
+    sensors,
+    system,
+    ws,
+)
 
 ROUTERS = [
     system.router,
@@ -9,6 +19,8 @@ ROUTERS = [
     actions.router,
     replay.router,
     media.router,
+    sensors.router,
+    reconstruction.router,
     ws.router,
 ]
 
