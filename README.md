@@ -10,7 +10,7 @@ RiskTwin is **decision support**. A named human approves every lift clearance. I
 
 | Claim | Honest scope |
 | --- | --- |
-| Spatial twin | A **2.5D** versioned site model: named zones on an annotated plan, with floor elevation. Not survey-grade 3D reconstruction. |
+| Spatial twin | A **2.5D** versioned operational zone map plus a real, local **COLMAP sparse 3D reconstruction** made from the walkthrough video. It is not survey-grade geometry. |
 | Always-on | A Data Watcher plus a change feed. On the Mac this is a local journal; on the Dell it is MongoDB Change Streams. |
 | Multimodal | Sampled still frames + local ASR/transcript + telemetry + documents. The text model never “watches” video. |
 | Multi-agent | Named specialist roles writing structured evidence. Specialisation is prompts, tools and stored state — not several giant models. |
@@ -68,7 +68,7 @@ npm run dev
 - Worker page: [http://127.0.0.1:3000/worker](http://127.0.0.1:3000/worker)
 - API: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
-On a private demo LAN, phones load `http://<host-lan-ip>:3000/worker`. Only the Worker API/dashboard is reachable; model ports and MongoDB stay bound to loopback on the Dell.
+On a private demo LAN, phones scan the dashboard QR (or load `http://<host-lan-ip>:3000/worker`). Only the Worker API/dashboard is reachable; model ports and MongoDB stay bound to loopback on the Dell.
 
 ### Drop-in media (you supply)
 
@@ -77,15 +77,16 @@ On a private demo LAN, phones load `http://<host-lan-ip>:3000/worker`. Only the 
 | `data/raw/video/` | 15–25 s team-recorded `.mp4`, optional `<clip>.mp4.meta.json` zone regions |
 | `data/raw/audio/` | 8–15 s 16 kHz mono `.wav`. If no ASR is served, also `<clip>.wav.transcript.txt` |
 
-Without those files the system still runs: missing visual/audio evidence **escalates** and is never fabricated. Then click **run media review** on the dashboard.
+Without those files the system still runs: missing visual/audio evidence **escalates** and is never fabricated. Then click **run media review** on the dashboard. With COLMAP installed, choose **COLMAP 3D → build 3D from video** to sample the latest MP4, match its sequential views, solve camera poses, and render the resulting point cloud. Set `RISKTWIN_COLMAP_BINARY` when the executable is outside `PATH`.
 
 ### Demo controls on the dashboard
 
 1. **Import documents** — retrieval changes the case from `ESCALATE` (no applicable rule) to `CONDITIONAL APPROVAL` when telemetry is in limit.
 2. **Start replay** — the recorded LIFT-042 trace (wind, load, worker, gateway stale).
-3. Have a teammate open `/worker`, pick **Zone C**.
-4. **Issue lift clearance** / **Command the crane** / **request raw clip** — OpenShell blocks or holds for a named human.
-5. Restart the API process. The case and its decision come back from the store (`recovered from store` on the banner).
+3. Have a teammate scan the worker QR, join `/worker`, and pick **Zone C**.
+4. Open **COLMAP 3D** to inspect or rebuild the walkthrough reconstruction.
+5. **Issue lift clearance** / **Command the crane** / **request raw clip** — OpenShell blocks or holds for a named human.
+6. Restart the API process. The case and its decision come back from the store (`recovered from store` on the banner).
 
 The 90-second pitch is in [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
 

@@ -4,10 +4,12 @@ This is the spec's last-resort vision path (section 9.4) and it runs on every
 host, including one with no VLM served. It reports *candidate* findings with
 honest confidence and never claims a text model saw the video.
 
-Two signals, both plain OpenCV:
+Five signals, all plain OpenCV:
   * inter-frame change against the median of the sampled frames, which surfaces
     objects that appear or move across the walkthrough;
   * the built-in HOG pedestrian detector, used to separate people from material.
+  * conservative colour/contrast candidates for fire or hot work, smoke or dust,
+    and poor visibility. These are never labelled confirmed hazards.
 
 Zone attribution comes from the operator's frame-to-zone sidecar. Without it a
 finding carries `zoneId: null` and cannot be used to claim a specific zone.
@@ -23,7 +25,7 @@ import numpy as np
 
 from packages.media.frames import FrameRef
 
-DETECTOR_VERSION = "opencv-median-diff+hog-people/1"
+DETECTOR_VERSION = "opencv-motion+hog+scene-candidates/2"
 
 _ANALYSIS_WIDTH = 640
 _MIN_AREA_FRACTION = 0.012
@@ -105,7 +107,9 @@ def _zone_for_box(
     return meta.get("defaultZoneId")
 
 
-def _change_boxes(gray: np.ndarray, reference: np.ndarray | None) -> list[tuple[int, int, int, int]]:
+def _change_boxes(
+    gray: np.ndarray, reference: np.ndarray | None
+) -> list[tuple[int, int, int, int]]:
     if reference is not None:
         delta = cv2.absdiff(gray, reference)
         delta = cv2.GaussianBlur(delta, (7, 7), 0)
@@ -118,7 +122,55 @@ def _change_boxes(gray: np.ndarray, reference: np.ndarray | None) -> list[tuple[
     return [cv2.boundingRect(contour) for contour in contours]
 
 
-def analyse_frames(frames: list[FrameRef], meta: dict[str, Any] | None = None) -> list[CvObservation]:
+def _scene_candidates(
+    image: np.ndarray, gray: np.ndarray
+) -> list[tuple[str, tuple[int, int, int, int], float, str]]:
+    """Cheap visual alarms with deliberately cautious labels and confidence."""
+    height, width = gray.shape[:2]
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    saturation = hsv[:, :, 1]
+    brightness = float(gray.mean())
+    contrast = float(gray.std())
+    results: list[tuple[str, tuple[int, int, int, int], float, str]] = []
+
+    warm = cv2.inRange(hsv, np.array([0, 130, 130]), np.array([28, 255, 255]))
+    warm_fraction = float(cv2.countNonZero(warm)) / float(height * width)
+    if warm_fraction >= 0.025:
+        contours, _ = cv2.findContours(warm, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if contours:
+            box = cv2.boundingRect(max(contours, key=cv2.contourArea))
+            results.append(
+                (
+                    "candidate_fire_or_hot_work",
+                    box,
+                    min(0.58, 0.32 + warm_fraction),
+                    "warm high-saturation region; could be flame, hot work, clothing or equipment and requires confirmation",
+                )
+            )
+    if brightness < 48:
+        results.append(
+            (
+                "candidate_low_visibility",
+                (0, 0, width, height),
+                0.55,
+                "scene luminance is low enough to reduce visual safety coverage",
+            )
+        )
+    if float(saturation.mean()) < 38 and contrast < 34 and 60 < brightness < 205:
+        results.append(
+            (
+                "candidate_smoke_or_dust",
+                (0, 0, width, height),
+                0.42,
+                "low-saturation low-contrast haze candidate; dust, smoke, weather or camera exposure may cause it",
+            )
+        )
+    return results
+
+
+def analyse_frames(
+    frames: list[FrameRef], meta: dict[str, Any] | None = None
+) -> list[CvObservation]:
     """Return candidate visual observations for the sampled frames."""
     meta = meta or {}
     loaded = _load_analysis_frames(frames)
@@ -134,6 +186,26 @@ def analyse_frames(frames: list[FrameRef], meta: dict[str, Any] | None = None) -
         frame_area = float(height * width)
         people = _person_boxes(image)
         candidates: list[tuple[float, CvObservation]] = []
+        scene_candidates: list[CvObservation] = []
+
+        for kind, box, confidence, note in _scene_candidates(image, gray):
+            x, y, w, h = box
+            area_fraction = (w * h) / frame_area
+            box_fraction = (x / width, y / height, (x + w) / width, (y + h) / height)
+            zone_id = _zone_for_box(box_fraction, meta)
+            scene_candidates.append(
+                CvObservation(
+                    frameIndex=frame.index,
+                    frameRef=frame.ref,
+                    kind=kind,
+                    box=box,
+                    boxFraction=box_fraction,
+                    areaFraction=area_fraction,
+                    zoneId=zone_id,
+                    confidence=confidence if zone_id else round(confidence * 0.75, 2),
+                    note=note,
+                )
+            )
 
         for box in _change_boxes(gray, reference):
             x, y, w, h = box
@@ -176,5 +248,6 @@ def analyse_frames(frames: list[FrameRef], meta: dict[str, Any] | None = None) -
 
         candidates.sort(key=lambda pair: pair[0], reverse=True)
         observations.extend(observation for _, observation in candidates[:_MAX_PER_FRAME])
+        observations.extend(scene_candidates[:2])
 
     return observations

@@ -34,6 +34,16 @@ _RISK_TYPES = (
     "route_obstruction",
     "load_path_conflict",
     "housekeeping",
+    "ppe_noncompliance",
+    "unsafe_edge_or_opening",
+    "fire_or_smoke",
+    "spill_or_leak",
+    "vehicle_person_conflict",
+    "electrical_hazard",
+    "unstable_materials",
+    "blocked_egress",
+    "poor_visibility",
+    "structural_damage",
     "none",
 )
 
@@ -65,6 +75,10 @@ def _risk_type_for(kinds: set[str], zone_kind: str | None) -> str:
         return "person_in_exclusion_zone"
     if "candidate_obstruction" in kinds:
         return "zone_obstruction" if zone_kind == "lift-exclusion" else "route_obstruction"
+    if "candidate_fire_or_hot_work" in kinds or "candidate_smoke_or_dust" in kinds:
+        return "fire_or_smoke"
+    if "candidate_low_visibility" in kinds:
+        return "poor_visibility"
     return "housekeeping"
 
 
@@ -99,12 +113,19 @@ class DeterministicVisionModel:
             if region.get("zoneId")
         }
 
-        grouped: dict[str | None, list[Any]] = {}
+        grouped: dict[tuple[str | None, str], list[Any]] = {}
         for observation in raw:
-            grouped.setdefault(observation.zoneId, []).append(observation)
+            category = (
+                "fire-or-smoke"
+                if observation.kind in {"candidate_fire_or_hot_work", "candidate_smoke_or_dust"}
+                else "visibility"
+                if observation.kind == "candidate_low_visibility"
+                else "person-or-obstruction"
+            )
+            grouped.setdefault((observation.zoneId, category), []).append(observation)
 
         results: list[VisionObservation] = []
-        for zone_id, items in grouped.items():
+        for (zone_id, _category), items in grouped.items():
             kinds = {item.kind for item in items}
             best = max(item.confidence for item in items)
             results.append(
@@ -190,10 +211,13 @@ class OpenAICompatVisionModel:
         zone_hint = ", ".join(zone_ids) if zone_ids else "none supplied"
         user_prompt = (
             f"Frame reference: {frame.ref}. Zones visible in this camera view: {zone_hint}. "
-            "Identify obstructions, material on a boundary, people in a restricted area and "
-            "load-path conflicts. Respond with JSON: "
+            "Check people and vehicles, PPE, restricted areas, edges/openings, load paths, "
+            "fire or smoke, spills or leaks, electrical hazards, unstable materials, blocked "
+            "egress, poor visibility, housekeeping and visible structural damage. Report only "
+            "what this frame supports. Respond with JSON: "
             '{"zoneId": string|null, "observations": string[], "riskType": one of '
-            f"{list(_RISK_TYPES)}, " '"confidence": 0..1, "frameRefs": string[]}'
+            f"{list(_RISK_TYPES)}, "
+            '"confidence": 0..1, "frameRefs": string[]}'
         )
         payload = {
             "model": self._settings.vlm_model,

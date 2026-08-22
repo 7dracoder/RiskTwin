@@ -24,8 +24,16 @@ CASE_ID = "LIFT-042"
 @pytest.fixture
 def workspace(tmp_path: Path) -> Iterator[Path]:
     """An isolated copy of the data workspace."""
-    for name in ("raw/video", "raw/audio", "raw/documents", "processed/frames",
-                 "processed/transcripts", "processed/redacted", "state"):
+    for name in (
+        "raw/video",
+        "raw/audio",
+        "raw/documents",
+        "processed/frames",
+        "processed/transcripts",
+        "processed/redacted",
+        "processed/reconstruction",
+        "state",
+    ):
         (tmp_path / "data" / name).mkdir(parents=True, exist_ok=True)
     shutil.copytree(
         REPO_ROOT / "data" / "site-models", tmp_path / "data" / "site-models", dirs_exist_ok=True
@@ -69,6 +77,7 @@ def settings(workspace: Path) -> Settings:
         frame_dir=str(workspace / "data" / "processed" / "frames"),
         transcript_dir=str(workspace / "data" / "processed" / "transcripts"),
         redacted_dir=str(workspace / "data" / "processed" / "redacted"),
+        reconstruction_dir=str(workspace / "data" / "processed" / "reconstruction"),
         frame_sample_count=4,
         policy_path=str(REPO_ROOT / "config" / "openshell-policy.yaml"),
         sources_path=str(REPO_ROOT / "config" / "sources.yaml"),

@@ -12,7 +12,9 @@ router = APIRouter(prefix="/api/events", tags=["events"])
 
 
 @router.post("/worker-position")
-async def ingest_worker_position(payload: WorkerPositionRequest, request: Request) -> dict[str, Any]:
+async def ingest_worker_position(
+    payload: WorkerPositionRequest, request: Request
+) -> dict[str, Any]:
     """Zone presence from an opted-in worker device on the private LAN.
 
     Carries a role alias, never a personal identity, and is purpose-limited to
@@ -27,6 +29,11 @@ async def ingest_worker_position(payload: WorkerPositionRequest, request: Reques
         "caseId": position.caseId,
         "workerAlias": position.workerAlias,
         "zoneId": position.zoneId,
+        "x": position.x,
+        "y": position.y,
+        "accuracyMeters": position.accuracyMeters,
+        "locationSource": position.locationSource,
+        "isSimulated": position.isSimulated,
         "siteModelVersion": position.siteModelVersion,
         "note": "Evidence and any targeted alert follow on the change feed.",
     }
