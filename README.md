@@ -6,7 +6,7 @@ It turns a site walkthrough, a crew radio clip, recorded equipment/weather telem
 
 RiskTwin is **decision support**. A named human approves every lift clearance. It never commands a crane, never identifies people by face, never tracks a worker outside an active safety case, and never sends site data or model requests off the host.
 
-## What this build is (and is not)
+## What this build is {and is not}
 
 | Claim | Honest scope |
 | --- | --- |
