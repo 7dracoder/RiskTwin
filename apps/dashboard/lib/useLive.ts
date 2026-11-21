@@ -10,7 +10,7 @@ import { getJson, wsUrl } from "./api";
  * about a new decision the same way the agents do (spec section 6.2). A slow
  * poll runs alongside it purely as a reconnect safety net.
  */
-export function useLive<T>(path: string, intervalMs = 4000) {
+export function useLive<T>(path: string, intervalMs = 4000, collections?: string[]) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inflight = useRef(false);
@@ -34,10 +34,14 @@ export function useLive<T>(path: string, intervalMs = 4000) {
     return () => clearInterval(timer);
   }, [refresh, intervalMs]);
 
+  const collectionKey = collections === undefined ? "*" : collections.join("|");
   useEffect(() => {
-    const unsubscribe = subscribe(() => void refresh());
+    const relevant = new Set(collectionKey.split("|").filter(Boolean));
+    const unsubscribe = subscribe((message) => {
+      if (collectionKey === "*" || (message.collection && relevant.has(message.collection))) void refresh();
+    });
     return unsubscribe;
-  }, [refresh]);
+  }, [refresh, collectionKey]);
 
   return { data, error, refresh };
 }

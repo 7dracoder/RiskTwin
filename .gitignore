@@ -20,11 +20,13 @@ data/raw/audio/*
 data/processed/frames/*
 data/processed/transcripts/*
 data/processed/redacted/*
+data/processed/reconstruction/*
 data/processed/import-report.json
 data/state/*
 !data/processed/frames/.gitkeep
 !data/processed/transcripts/.gitkeep
 !data/processed/redacted/.gitkeep
+!data/processed/reconstruction/.gitkeep
 !data/state/.gitkeep
 
 .DS_Store

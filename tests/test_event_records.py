@@ -82,9 +82,14 @@ async def test_video_evidence_is_recorded_from_sampled_frames(
     await client.post(f"/api/cases/{CASE_ID}/review")
     await settle(client)
 
-    video = next(
+    video_items = [
         item for item in await read_evidence(client) if item["evidenceType"] == "video_observation"
+    ]
+    identities = [(item["finding"], tuple(item["sourceRefs"])) for item in video_items]
+    assert len(identities) == len(set(identities)), (
+        "a manual review event must not write duplicate visual findings"
     )
+    video = video_items[0]
     assert video["detail"]["available"] is True
     assert video["sourceRefs"], "a visual finding must cite the frames it came from"
     # No VLM is served in the test profile, so the finding must say so rather than
@@ -97,6 +102,15 @@ async def test_video_evidence_is_recorded_from_sampled_frames(
     manifests = (await client.get(f"/api/cases/{CASE_ID}/redaction")).json()
     assert manifests, "processing a clip must produce a redaction manifest"
     assert manifests[0]["redactionMethod"]
+
+    filtered = (
+        await client.get(
+            f"/api/cases/{CASE_ID}/evidence",
+            params={"type": "video_observation", "limit": 50},
+        )
+    ).json()
+    assert filtered
+    assert all(item["evidenceType"] == "video_observation" for item in filtered)
 
 
 async def test_audio_evidence_records_its_transcript_source(

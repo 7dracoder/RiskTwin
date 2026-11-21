@@ -16,15 +16,22 @@ import asyncio
 import logging
 from typing import Any
 
-from agents import crew_comms, data_watcher, policy_gate, rules_retrieval, safety_commander
+from agents import (
+    crew_comms,
+    data_watcher,
+    policy_gate,
+    rules_retrieval,
+    safety_commander,
+    vision_risk,
+)
 from agents import telemetry_proximity as telemetry_agent
-from agents import vision_risk
 from agents.base import AgentContext
 from packages.contracts import (
     AlertTier,
     Case,
     CommanderVerdict,
     Decision,
+    NotificationStatus,
     SiteEvent,
     SiteModel,
     TelemetryReading,
@@ -41,6 +48,7 @@ from packages.storage.base import (
     CASES,
     DOCUMENTS,
     EVIDENCE,
+    NOTIFICATIONS,
     SITE_EVENTS,
     TELEMETRY,
     WORKER_POSITIONS,
@@ -81,6 +89,10 @@ class Orchestrator:
         self._rules: RuleSet | None = None
         self._document_count = -1
         self._listeners: list[Any] = []
+        # HTTP-triggered events are also published to the store change feed. Keep
+        # the completed result so the direct caller and feed consumer converge on
+        # one specialist run instead of processing the same event twice.
+        self._event_results: dict[str, CommanderVerdict | None] = {}
 
     @property
     def context(self) -> AgentContext:
@@ -224,6 +236,13 @@ class Orchestrator:
             x=request.x,
             y=request.y,
             z=request.z,
+            latitude=request.latitude,
+            longitude=request.longitude,
+            accuracyMeters=request.accuracyMeters,
+            headingDegrees=request.headingDegrees,
+            speedMps=request.speedMps,
+            locationSource=request.locationSource,
+            isSimulated=request.isSimulated,
             timestamp=request.timestamp or utcnow(),
         )
         model = await self.site_model()
@@ -241,9 +260,13 @@ class Orchestrator:
                 "floorId": position.floorId,
                 "x": position.x,
                 "y": position.y,
+                "latitude": position.latitude,
+                "longitude": position.longitude,
+                "accuracyMeters": position.accuracyMeters,
+                "locationSource": position.locationSource,
                 "positionId": position.id,
             },
-            is_simulated=False,
+            is_simulated=position.isSimulated,
         )
         return event, position
 
@@ -310,6 +333,9 @@ class Orchestrator:
     async def handle_event(self, event: SiteEvent) -> CommanderVerdict | None:
         """Schedule the specialists this event needs, then re-decide the case."""
         async with self._lock(event.caseId):
+            if event.id in self._event_results:
+                return self._event_results[event.id]
+
             if event.type == "site_state" and event.payload.get("kind") == "lift_state":
                 await self._context.store.update_one(
                     CASES,
@@ -323,9 +349,7 @@ class Orchestrator:
             tasks: list[dict[str, Any]] = []
 
             for agent_name in scheduled:
-                task = self._build_task(
-                    agent_name, event=event, lift_active=lift_active
-                )
+                task = self._build_task(agent_name, event=event, lift_active=lift_active)
                 if task is not None:
                     tasks.append(
                         {
@@ -339,12 +363,19 @@ class Orchestrator:
                 await self._context.runtime.run_all(tasks)
 
             if event.type in RECORD_ONLY_EVENTS:
+                self._remember_event_result(event.id, None)
                 return None
 
             rules = await self._ensure_rules(event.caseId, input_event_id=event.id)
             verdict = await self._decide(event.caseId, rules=rules, input_event_id=event.id)
             await self._dispatch_alerts(event.caseId, verdict=verdict, lift_active=lift_active)
+            self._remember_event_result(event.id, verdict)
             return verdict
+
+    def _remember_event_result(self, event_id: str, result: CommanderVerdict | None) -> None:
+        self._event_results[event_id] = result
+        if len(self._event_results) > 2048:
+            self._event_results.pop(next(iter(self._event_results)))
 
     def _build_task(self, agent_name: str, *, event: SiteEvent, lift_active: bool):
         context = self._context
@@ -410,11 +441,16 @@ class Orchestrator:
                 )
                 if not docs:
                     return []
-                written, _ = await telemetry_agent.evaluate_position(
+                written, relation = await telemetry_agent.evaluate_position(
                     context,
                     position=WorkerPosition.model_validate(docs[0]),
                     site_model=await self.site_model(),
                     lift_active=lift_active,
+                )
+                await context.store.update_one(
+                    WORKER_POSITIONS,
+                    {"_id": payload.get("positionId")},
+                    {"relation": relation.value},
                 )
                 return written
 
@@ -492,14 +528,21 @@ class Orchestrator:
             )
             return verdict
 
-    async def run_manual_review(self, case_id: str) -> CommanderVerdict | None:
+    async def run_manual_review(
+        self, case_id: str, *, asset_name: str | None = None
+    ) -> CommanderVerdict | None:
         """Process the supplied media on demand, as a manager request would."""
         event = await self._record_event(
             case_id=case_id,
             event_type="manual_review",
             source="site-controller",
             source_id=None,
-            payload={"reason": "manual media review requested"},
+            payload={
+                "reason": "uploaded media review"
+                if asset_name
+                else "manual media review requested",
+                "assetName": asset_name,
+            },
             is_simulated=False,
         )
         return await self.handle_event(event)
@@ -571,7 +614,17 @@ class Orchestrator:
                 continue
             if (now - notification.sentAt).total_seconds() < deadline:
                 continue
-            await policy_gate.send_worker_alert(
+            # A deadline is handled exactly once. Without this state transition,
+            # the five-second freshness loop re-escalates the same notification
+            # forever and needlessly re-runs retrieval and the Commander.
+            await self._context.store.update_one(
+                NOTIFICATIONS,
+                {"_id": notification.id},
+                {"status": NotificationStatus.EXPIRED.value},
+            )
+            if notification.tier is AlertTier.ESCALATE:
+                continue
+            escalated_alert = await policy_gate.send_worker_alert(
                 self._context,
                 case_id=case_id,
                 worker_alias=notification.workerAlias,
@@ -579,5 +632,6 @@ class Orchestrator:
                 zone_id=notification.zoneId,
                 evidence_ids=notification.reasonEvidenceIds,
             )
-            escalated.append(notification.id)
+            if escalated_alert is not None:
+                escalated.append(notification.id)
         return escalated

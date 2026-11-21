@@ -54,6 +54,14 @@ READABLE_KIND = {
     "wind_gust_kmh": "Wind gust",
     "crane_load_pct": "Load utilisation",
     "hydraulic_temp_c": "Hydraulic temperature",
+    "carbon_monoxide_ppm": "Carbon monoxide",
+    "oxygen_percent": "Oxygen",
+    "noise_dba": "Noise",
+    "dust_pm25_ug_m3": "Fine dust PM2.5",
+    "ambient_temperature_c": "Ambient temperature",
+    "structural_tilt_deg": "Structural tilt",
+    "vibration_mm_s": "Vibration",
+    "worker_plant_distance_m": "Worker–plant distance",
 }
 
 
@@ -136,10 +144,7 @@ def build_ruleset(chunks: list[DocumentChunk]) -> RuleSet:
                 rules.maxWindGustKmh = chunk.ruleValue
                 rules.citations[RULE_MAX_WIND_GUST] = citation
         elif chunk.ruleKey == RULE_MAX_LOAD_UTILISATION and chunk.ruleValue is not None:
-            if (
-                rules.maxLoadUtilisationPct is None
-                or chunk.ruleValue < rules.maxLoadUtilisationPct
-            ):
+            if rules.maxLoadUtilisationPct is None or chunk.ruleValue < rules.maxLoadUtilisationPct:
                 rules.maxLoadUtilisationPct = chunk.ruleValue
                 rules.citations[RULE_MAX_LOAD_UTILISATION] = citation
         elif chunk.ruleKey == RULE_EXCLUSION_ZONE_CLEAR:
@@ -210,8 +215,9 @@ class ThresholdVerdict:
         lines = [
             "ANOMALY DETECTED",
             f"{name}: {self.value:g}{unit}",
-            f"Lift-plan maximum: {self.limit:g}{unit}" if self.limit is not None else
-            "Lift-plan maximum: not retrieved",
+            f"Lift-plan maximum: {self.limit:g}{unit}"
+            if self.limit is not None
+            else "Lift-plan maximum: not retrieved",
         ]
         if self.deviation is not None:
             lines.append(f"Deviation: +{self.deviation:g}{unit}")
@@ -220,7 +226,9 @@ class ThresholdVerdict:
         return "\n".join(lines)
 
 
-def evaluate_threshold(kind: str, value: Any, rules: RuleSet, unit: str | None = None) -> ThresholdVerdict:
+def evaluate_threshold(
+    kind: str, value: Any, rules: RuleSet, unit: str | None = None
+) -> ThresholdVerdict:
     """Compare one reading with its retrieved limit. Never guesses a limit."""
     numeric = _as_float(value)
     rule_key = THRESHOLD_RULES.get(kind)
@@ -239,7 +247,9 @@ def evaluate_threshold(kind: str, value: Any, rules: RuleSet, unit: str | None =
         limit=limit,
         ruleKey=rule_key,
         breached=breached,
-        deviation=round(numeric - limit, 2) if breached and numeric is not None and limit is not None else None,
+        deviation=round(numeric - limit, 2)
+        if breached and numeric is not None and limit is not None
+        else None,
         citation=citation.ref if citation else None,
     )
 
@@ -296,7 +306,7 @@ def reduce_current_facts(evidence: list[Evidence]) -> CurrentFacts:
             key = str(detail.get("workerAlias") or item.id)
             facts.proximity[key] = item
         elif item.evidenceType is EvidenceType.VIDEO_OBSERVATION:
-            key = str(detail.get("zoneId") or "unmapped")
+            key = f"{detail.get('zoneId') or 'unmapped'}:{detail.get('riskType') or 'observation'}"
             facts.vision[key] = item
         elif item.evidenceType is EvidenceType.AUDIO_OBSERVATION:
             key = str(detail.get("subject") or "crew")
@@ -425,7 +435,8 @@ def derive_decision(
                 code=f"THRESHOLD_BREACH:{kind}",
                 findingClass="hold",
                 text=(
-                    f"{name} {detail.get('value')}{unit} exceeds the retrieved limit of "
+                    f"{name} {detail.get('value')}{unit} breaches the "
+                    f"{detail.get('ruleSource', 'retrieved rule')} of "
                     f"{detail.get('limit')}{unit}."
                 ),
                 severity=Severity.CRITICAL if kind == "wind_gust_kmh" else Severity.HIGH,
@@ -449,7 +460,11 @@ def derive_decision(
                     findingClass="hold" if lift_active else "info",
                     text=(
                         f"{alias} is inside exclusion zone {zone_id}"
-                        + (" during an active lift." if lift_active else " while the lift is not active.")
+                        + (
+                            " during an active lift."
+                            if lift_active
+                            else " while the lift is not active."
+                        )
                     ),
                     severity=Severity.CRITICAL if lift_active else Severity.MEDIUM,
                     evidenceIds=[item.id],
@@ -481,8 +496,26 @@ def derive_decision(
 
     # 5. Visual obstruction of the exclusion zone.
     visual_obstruction: list[str] = []
-    for zone_id, item in facts.vision.items():
+    actionable_visual_risks = {
+        "zone_obstruction",
+        "person_in_exclusion_zone",
+        "load_path_conflict",
+        "route_obstruction",
+        "ppe_noncompliance",
+        "unsafe_edge_or_opening",
+        "fire_or_smoke",
+        "spill_or_leak",
+        "vehicle_person_conflict",
+        "electrical_hazard",
+        "unstable_materials",
+        "blocked_egress",
+        "poor_visibility",
+        "structural_damage",
+    }
+    obstruction_risks = {"zone_obstruction", "person_in_exclusion_zone", "load_path_conflict"}
+    for _key, item in facts.vision.items():
         detail = item.detail or {}
+        zone_id = str(detail.get("zoneId") or "unmapped")
         if not detail.get("available", True):
             findings.append(
                 RiskFinding(
@@ -498,17 +531,22 @@ def derive_decision(
             )
             continue
         risk_type = detail.get("riskType")
-        if risk_type not in {"zone_obstruction", "person_in_exclusion_zone", "load_path_conflict"}:
+        if risk_type not in actionable_visual_risks:
             continue
-        visual_obstruction.append(zone_id)
+        if risk_type in obstruction_risks:
+            visual_obstruction.append(zone_id)
         confirmed = bool(detail.get("confirmed"))
         findings.append(
             RiskFinding(
-                code="ZONE_OBSTRUCTION",
+                code=f"VISUAL_RISK:{risk_type}",
                 findingClass="hold" if lift_active else "info",
                 text=(
                     f"Visual evidence indicates {risk_type.replace('_', ' ')} affecting zone {zone_id}"
-                    + ("." if confirmed else "; the finding is a candidate and needs human confirmation.")
+                    + (
+                        "."
+                        if confirmed
+                        else "; the finding is a candidate and needs human confirmation."
+                    )
                 ),
                 severity=Severity.HIGH if confirmed else Severity.MEDIUM,
                 evidenceIds=[item.id],
@@ -612,9 +650,7 @@ def _covered_by_plan(tag: str, restart_steps: list[str]) -> bool:
     keywords = _PLAN_COVERAGE.get(tag, ())
     if not keywords:
         return False
-    return any(
-        any(keyword in step.lower() for keyword in keywords) for step in restart_steps
-    )
+    return any(any(keyword in step.lower() for keyword in keywords) for step in restart_steps)
 
 
 def _required_steps(findings: list[RiskFinding], rules: RuleSet, decision: Decision) -> list[str]:
@@ -634,7 +670,9 @@ def _required_steps(findings: list[RiskFinding], rules: RuleSet, decision: Decis
             )
         )
     if "CRITICAL_SOURCE_UNVERIFIED" in codes or "POSITION_COVERAGE_UNKNOWN" in codes:
-        generated.append(("freshness", "Restore and verify coverage for every critical data source"))
+        generated.append(
+            ("freshness", "Restore and verify coverage for every critical data source")
+        )
     if "RULES_NOT_RETRIEVED" in codes:
         generated.append(("rules", "Retrieve and index the approved lift plan and safety SOP"))
     if "CONFLICTING_SOURCES" in codes:
@@ -657,7 +695,9 @@ def _required_steps(findings: list[RiskFinding], rules: RuleSet, decision: Decis
     return steps
 
 
-def _confidence(findings: list[RiskFinding], facts: CurrentFacts, evidence: list[Evidence]) -> float:
+def _confidence(
+    findings: list[RiskFinding], facts: CurrentFacts, evidence: list[Evidence]
+) -> float:
     """Confidence in the *verdict*, driven by evidence coverage and its own confidence."""
     if not evidence:
         return 0.0
@@ -666,9 +706,9 @@ def _confidence(findings: list[RiskFinding], facts: CurrentFacts, evidence: list
     relevant = [item for item in evidence if item.id in ids] or evidence
     mean_confidence = sum(item.confidence for item in relevant) / len(relevant)
     coverage = min(1.0, len(facts.evidence_types) / 4)
-    severity_weight = max(
-        (SEVERITY_RANK[finding.severity.value] for finding in contributing), default=1
-    ) / 4
+    severity_weight = (
+        max((SEVERITY_RANK[finding.severity.value] for finding in contributing), default=1) / 4
+    )
     score = 0.5 * mean_confidence + 0.3 * coverage + 0.2 * severity_weight
     return round(min(0.99, max(0.05, score)), 2)
 

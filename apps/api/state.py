@@ -21,6 +21,7 @@ from apps.api.bus import EventBus
 from packages.config import Settings, get_settings
 from packages.contracts import Case
 from packages.inference import build_inference_suite
+from packages.reconstruction import ColmapReconstruction
 from packages.replay import ReplayEngine
 from packages.runtime import AgentRuntime, PolicyEngine, framework_status
 from packages.storage import build_store
@@ -47,6 +48,7 @@ class AppState:
         )
         self.orchestrator = Orchestrator(self.context)
         self.replay = ReplayEngine(self.store, handler=self.orchestrator.ingest_replay_event)
+        self.reconstruction = ColmapReconstruction(self.settings)
         self.bus = EventBus()
         self.localOnlyCheck: dict[str, str] = {}
         self._tasks: list[asyncio.Task[None]] = []
@@ -83,6 +85,7 @@ class AppState:
         return case
 
     async def shutdown(self) -> None:
+        await self.reconstruction.shutdown()
         await self.replay.stop()
         for task in self._tasks:
             task.cancel()
@@ -153,6 +156,18 @@ class AppState:
                 return True
         return False
 
+    def queue_video_processing(self, video_name: str) -> None:
+        """Start visual review and COLMAP without holding the upload request open."""
+        task = asyncio.create_task(self._process_video(video_name))
+        self._tasks.append(task)
+
+    async def _process_video(self, video_name: str) -> None:
+        try:
+            await self.reconstruction.start(video_name)
+            await self.orchestrator.run_manual_review(self.settings.case_id, asset_name=video_name)
+        except Exception:  # noqa: BLE001 - expose failures through logs/status
+            logger.exception("automatic video processing failed for %s", video_name)
+
     # ------------------------------------------------------------------ #
     # introspection
     # ------------------------------------------------------------------ #
@@ -172,5 +187,6 @@ class AppState:
             "frameworks": framework_status(self.settings),
             "runtime": self.runtime.describe(),
             "replay": self.replay.describe(),
+            "reconstruction": self.reconstruction.status(),
             "websocketClients": self.bus.client_count,
         }

@@ -3,9 +3,11 @@
 import { useCallback } from "react";
 import { ActionPanel } from "@/components/ActionPanel";
 import { AgentCards } from "@/components/AgentCards";
+import { ConnectionGuide } from "@/components/ConnectionGuide";
 import { DecisionBanner } from "@/components/DecisionBanner";
 import { EventStream } from "@/components/EventStream";
 import { SiteMap } from "@/components/SiteMap";
+import { SensorPanel } from "@/components/SensorPanel";
 import { SourcePanel } from "@/components/SourcePanel";
 import { SystemPanel } from "@/components/SystemPanel";
 import { VisionPanel } from "@/components/VisionPanel";
@@ -20,37 +22,53 @@ import type {
   FrameRow,
   NotificationRecord,
   PolicyLogRow,
+  PointCloud,
   RedactionRow,
+  ReconstructionStatus,
   ReplayStatus,
   SiteEventItem,
   SiteModelView,
   SourceRow,
   SystemSnapshot,
   WorkerPositionView,
+  SensorReading,
 } from "@/lib/types";
 
 export default function ControllerDashboard() {
   const mounted = useMounted();
   const { connected } = useFeedStatus();
 
-  const caseQuery = useLive<CaseView>(`/api/cases/${CASE_ID}`);
-  const evidenceQuery = useLive<EvidenceItem[]>(`/api/cases/${CASE_ID}/evidence`);
-  const timelineQuery = useLive<SiteEventItem[]>(`/api/cases/${CASE_ID}/timeline`);
-  const runsQuery = useLive<AgentRun[]>(`/api/cases/${CASE_ID}/agents`);
-  const actionsQuery = useLive<ActionRecord[]>(`/api/cases/${CASE_ID}/actions`);
-  const redactionQuery = useLive<RedactionRow[]>(`/api/media/redacted`);
-  const framesQuery = useLive<FrameRow[]>(`/api/media/frames`);
-  const modelQuery = useLive<SiteModelView>(`/api/site-model`, 20000);
-  const workersQuery = useLive<WorkerPositionView[]>(`/api/workers`);
-  const sourcesQuery = useLive<SourceRow[]>(`/api/sources`, 2000);
-  const notificationsQuery = useLive<NotificationRecord[]>(`/api/notifications`);
-  const policyQuery = useLive<PolicyLogRow[]>(`/api/policy/log`);
-  const systemQuery = useLive<SystemSnapshot>(`/api/system`, 6000);
-  const replayQuery = useLive<ReplayStatus>(`/api/replay`, 2000);
+  const caseQuery = useLive<CaseView>(`/api/cases/${CASE_ID}`, 4000, ["cases"]);
+  const evidenceQuery = useLive<EvidenceItem[]>(`/api/cases/${CASE_ID}/evidence`, 4000, ["evidence"]);
+  const visualEvidenceQuery = useLive<EvidenceItem[]>(
+    `/api/cases/${CASE_ID}/evidence?type=video_observation&limit=50`,
+    4000, ["evidence"],
+  );
+  const timelineQuery = useLive<SiteEventItem[]>(`/api/cases/${CASE_ID}/timeline`, 4000, ["site_events"]);
+  const runsQuery = useLive<AgentRun[]>(`/api/cases/${CASE_ID}/agents`, 4000, ["agent_runs"]);
+  const actionsQuery = useLive<ActionRecord[]>(`/api/cases/${CASE_ID}/actions`, 4000, ["actions"]);
+  const redactionQuery = useLive<RedactionRow[]>(`/api/media/redacted`, 10000, ["redaction_manifest"]);
+  const framesQuery = useLive<FrameRow[]>(`/api/media/frames`, 15000, []);
+  const modelQuery = useLive<SiteModelView>(`/api/site-model`, 20000, ["site_model"]);
+  const workersQuery = useLive<WorkerPositionView[]>(`/api/workers`, 4000, ["worker_positions"]);
+  const sourcesQuery = useLive<SourceRow[]>(`/api/sources`, 5000, ["source_manifest"]);
+  const notificationsQuery = useLive<NotificationRecord[]>(`/api/notifications`, 4000, ["notifications"]);
+  const policyQuery = useLive<PolicyLogRow[]>(`/api/policy/log`, 8000, ["policy_log"]);
+  const systemQuery = useLive<SystemSnapshot>(`/api/system`, 6000, []);
+  const replayQuery = useLive<ReplayStatus>(`/api/replay`, 2000, ["replay_state"]);
+  const reconstructionQuery = useLive<ReconstructionStatus>(`/api/reconstruction/status`, 1200, []);
+  const cloudQuery = useLive<PointCloud>(`/api/reconstruction/points`, 5000, []);
+  const sensorsQuery = useLive<SensorReading[]>(`/api/sensors/latest`, 3000, ["telemetry"]);
+
+  const build3D = useCallback(async () => {
+    await postJson<ReconstructionStatus>("/api/reconstruction/start");
+    await reconstructionQuery.refresh();
+  }, [reconstructionQuery]);
 
   const refreshAll = useCallback(() => {
     void caseQuery.refresh();
     void evidenceQuery.refresh();
+    void visualEvidenceQuery.refresh();
     void actionsQuery.refresh();
     void notificationsQuery.refresh();
     void policyQuery.refresh();
@@ -58,9 +76,11 @@ export default function ControllerDashboard() {
     void replayQuery.refresh();
     void framesQuery.refresh();
     void redactionQuery.refresh();
+    void sensorsQuery.refresh();
   }, [
     caseQuery,
     evidenceQuery,
+    visualEvidenceQuery,
     actionsQuery,
     notificationsQuery,
     policyQuery,
@@ -68,6 +88,7 @@ export default function ControllerDashboard() {
     replayQuery,
     framesQuery,
     redactionQuery,
+    sensorsQuery,
   ]);
 
   const runReview = useCallback(async () => {
@@ -78,7 +99,12 @@ export default function ControllerDashboard() {
     }
   }, [refreshAll]);
 
-  const evidence = evidenceQuery.data ?? [];
+  const visualEvidence = visualEvidenceQuery.data ?? [];
+  const visualIds = new Set(visualEvidence.map((item) => item._id));
+  const evidence = [
+    ...visualEvidence,
+    ...(evidenceQuery.data ?? []).filter((item) => !visualIds.has(item._id)),
+  ];
 
   if (!mounted) {
     return (
@@ -96,49 +122,54 @@ export default function ControllerDashboard() {
         connected={connected}
       />
 
-      <div className="grid flex-1 grid-cols-1 gap-2 xl:grid-cols-12">
-        <div className="flex flex-col gap-2 xl:col-span-3">
-          <div className="min-h-[26rem] flex-1">
-            <VisionPanel
-              frames={framesQuery.data ?? []}
-              redactions={redactionQuery.data ?? []}
-              evidence={evidence}
-              onReview={runReview}
-            />
-          </div>
-          <div className="min-h-[14rem]">
-            <SourcePanel sources={sourcesQuery.data ?? []} />
-          </div>
-        </div>
+      <ConnectionGuide
+        system={systemQuery.data}
+        model={modelQuery.data}
+        evidence={evidence}
+      />
 
-        <div className="flex flex-col gap-2 xl:col-span-5">
-          <div className="min-h-[24rem] flex-1">
-            <SiteMap
-              model={modelQuery.data}
-              workers={workersQuery.data ?? []}
-              evidence={evidence}
-              liftActive={Boolean(caseQuery.data?.liftActive)}
-            />
-          </div>
-          <div className="min-h-[18rem]">
+      <SensorPanel readings={sensorsQuery.data ?? []} onChange={refreshAll} />
+
+      <div className="grid grid-cols-1 gap-2 xl:grid-cols-12">
+        <div className="min-h-[38rem] xl:col-span-5">
+          <VisionPanel
+            frames={framesQuery.data ?? []}
+            redactions={redactionQuery.data ?? []}
+            evidence={evidence}
+            onReview={runReview}
+            onUploaded={refreshAll}
+          />
+        </div>
+        <div className="min-h-[38rem] xl:col-span-7">
+          <SiteMap
+            model={modelQuery.data}
+            workers={workersQuery.data ?? []}
+            evidence={evidence}
+            liftActive={Boolean(caseQuery.data?.liftActive)}
+            reconstruction={reconstructionQuery.data}
+            cloud={cloudQuery.data}
+            onBuild3D={build3D}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 xl:grid-cols-12">
+        <div className="min-h-[30rem] xl:col-span-4">
+          <AgentCards runs={runsQuery.data ?? []} evidence={evidence} />
+        </div>
+        <div className="min-h-[30rem] xl:col-span-5">
+          <SystemPanel system={systemQuery.data} replay={replayQuery.data} onChange={refreshAll} />
+        </div>
+        <div className="flex min-h-[30rem] flex-col gap-2 xl:col-span-3">
+          <div className="min-h-[14rem] flex-1">
             <ActionPanel
               actions={actionsQuery.data ?? []}
               notifications={notificationsQuery.data ?? []}
               onChange={refreshAll}
             />
           </div>
-        </div>
-
-        <div className="flex flex-col gap-2 xl:col-span-4">
-          <div className="min-h-[22rem] flex-1">
-            <AgentCards runs={runsQuery.data ?? []} evidence={evidence} />
-          </div>
-          <div className="min-h-[20rem]">
-            <SystemPanel
-              system={systemQuery.data}
-              replay={replayQuery.data}
-              onChange={refreshAll}
-            />
+          <div className="min-h-[14rem] flex-1">
+            <SourcePanel sources={sourcesQuery.data ?? []} />
           </div>
         </div>
       </div>

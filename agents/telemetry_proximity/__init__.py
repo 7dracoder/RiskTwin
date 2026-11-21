@@ -26,12 +26,35 @@ logger = logging.getLogger(__name__)
 
 AGENT_NAME = "telemetry-proximity"
 
+# Project-configured demonstration bands. They are intentionally identified as
+# operational demo thresholds, not presented as retrieved statutory limits.
+SITE_SENSOR_RULES: dict[str, tuple[str, float, str]] = {
+    "carbon_monoxide_ppm": ("max", 35.0, "ppm"),
+    "oxygen_percent": ("min", 19.5, "%"),
+    "noise_dba": ("max", 85.0, "dBA"),
+    "dust_pm25_ug_m3": ("max", 35.0, "µg/m³"),
+    "ambient_temperature_c": ("max", 38.0, "°C"),
+    "structural_tilt_deg": ("max", 2.0, "°"),
+    "vibration_mm_s": ("max", 5.0, "mm/s"),
+    "worker_plant_distance_m": ("min", 2.0, "m"),
+}
+
 
 async def evaluate_reading(
     context: AgentContext, *, reading: TelemetryReading, rules: RuleSet
 ) -> list[str]:
     """Compare one reading with its retrieved limit and write the verdict."""
     verdict = evaluate_threshold(reading.kind, reading.value, rules, unit=reading.unit)
+    configured = SITE_SENSOR_RULES.get(reading.kind)
+    rule_source = "retrieved lift-plan rule"
+    if verdict.limit is None and configured:
+        direction, limit, configured_unit = configured
+        verdict.limit = limit
+        verdict.unit = reading.unit or configured_unit
+        verdict.breached = verdict.value > limit if direction == "max" else verdict.value < limit
+        verdict.deviation = abs(verdict.value - limit) if verdict.breached else 0.0
+        verdict.ruleKey = f"configured_site_sensor:{reading.kind}:{direction}"
+        rule_source = "project-configured demo threshold"
     name = READABLE_KIND.get(reading.kind, reading.kind)
     unit = f" {verdict.unit}" if verdict.unit else ""
 
@@ -40,19 +63,21 @@ async def evaluate_reading(
             f"{name} is {verdict.value:g}{unit}. No retrieved limit applies to this reading, "
             "so it cannot be cleared against a rule."
         )
-        severity = Severity.MEDIUM if reading.kind in {"wind_gust_kmh", "crane_load_pct"} else Severity.INFO
+        severity = (
+            Severity.MEDIUM
+            if reading.kind in {"wind_gust_kmh", "crane_load_pct"}
+            else Severity.INFO
+        )
         confidence = 0.8
     elif verdict.breached:
         finding = (
-            f"{name} {verdict.value:g}{unit} exceeds the retrieved limit of "
+            f"{name} {verdict.value:g}{unit} breaches the {rule_source} of "
             f"{verdict.limit:g}{unit} by {verdict.deviation:g}{unit}."
         )
         severity = Severity.CRITICAL if reading.kind == "wind_gust_kmh" else Severity.HIGH
         confidence = 0.98
     else:
-        finding = (
-            f"{name} {verdict.value:g}{unit} is within the retrieved limit of {verdict.limit:g}{unit}."
-        )
+        finding = f"{name} {verdict.value:g}{unit} is within the {rule_source} of {verdict.limit:g}{unit}."
         severity = Severity.INFO
         confidence = 0.95
 
@@ -67,6 +92,7 @@ async def evaluate_reading(
         source_refs=[f"telemetry:{reading.id}", f"source:{reading.sourceId or reading.source}"],
         detail={
             **verdict.as_detail(),
+            "ruleSource": rule_source,
             "sourceRef": f"telemetry:{reading.id}",
             "isSimulated": reading.isSimulated,
         },
@@ -135,9 +161,7 @@ async def evaluate_position(
             f"{resolution.siteModelId} v{resolution.siteModelVersion}: {resolution.detail}."
         )
     else:
-        finding = (
-            f"{position.workerAlias} is in a non-restricted area: {resolution.detail}."
-        )
+        finding = f"{position.workerAlias} is in a non-restricted area: {resolution.detail}."
 
     record = await write_evidence(
         context,

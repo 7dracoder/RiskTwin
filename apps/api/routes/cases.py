@@ -64,10 +64,14 @@ async def list_evidence(
     case_id: str,
     request: Request,
     limit: int = Query(default=200, ge=1, le=1000),
+    evidence_type: str | None = Query(default=None, alias="type"),
 ) -> list[dict[str, Any]]:
     state = request.app.state.risktwin
+    query: dict[str, Any] = {"caseId": case_id}
+    if evidence_type:
+        query["evidenceType"] = evidence_type
     return await state.store.find(
-        EVIDENCE, {"caseId": case_id}, sort=[("timestamp", -1)], limit=limit
+        EVIDENCE, query, sort=[("timestamp", -1)], limit=limit
     )
 
 

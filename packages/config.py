@@ -126,6 +126,12 @@ class Settings(BaseSettings):
     redacted_dir: str = "data/processed/redacted"
     frame_sample_count: int = Field(default=6, ge=1, le=24)
 
+    # --- local COLMAP reconstruction ---
+    reconstruction_dir: str = "data/processed/reconstruction"
+    colmap_binary: str = "colmap"
+    reconstruction_frame_count: int = Field(default=40, ge=8, le=120)
+    reconstruction_max_dimension: int = Field(default=960, ge=480, le=2400)
+
     # --- policy / sources ---
     policy_path: str = "config/openshell-policy.yaml"
     sources_path: str = "config/sources.yaml"
